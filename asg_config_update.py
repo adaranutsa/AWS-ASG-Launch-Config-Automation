@@ -7,17 +7,37 @@
 
 import boto3, time
 
+class ArgumentChecker:
+    """
+    Decorator for checking that arguments are properly
+    configured before running the script
+    """
+    
+    def __init__(self, cls):
+        # Initiate the class being passed
+        self.cls = cls
+        
+    def __call__(self, *args, **kwargs):
+        
+        # Check to ensure all kwargs are properly configured
+        for key, value in kwargs.items():
+            if value == '':
+                raise Exception("{} needs to be configured".format(key))
+            
+        return self.cls(*args, **kwargs)
+
+@ArgumentChecker
 class AsgConfig:
     
-    def __init__(self, profile, region, dryrun, noReboot):
+    def __init__(self, *args, **kwargs):
 
-        self.session = boto3.Session(profile_name = profile, region_name = region)
+        self.session = boto3.Session(profile_name = kwargs['profile'], region_name = kwargs['region'])
         
         # Store dryrun operation value
-        self.dryrun = dryrun
+        self.dryrun = kwargs['dryrun']
         
         # Store instance restart value
-        self.noReboot = noReboot
+        self.noReboot = kwargs['noReboot']
         
         # The tag to check for and the value
         self.asg_tag_key = 'AsgConfigUpdate'
@@ -187,7 +207,7 @@ class AsgConfig:
             
         return True
     
-    def run(self):
+    def __call__(self):
         """
         Run the script to create get ASGs, create AMIs,
         Create new launch configs, and update ASGs
@@ -196,27 +216,36 @@ class AsgConfig:
         # Get list of ASGs to update AMI on
         asgs = self.scanAsgs()
         
-        # Create AMI, Create new launch Config, Update ASG
-        self.updateConfig(asgs)
+        # Check if there are any ASGs to work on
+        if len(asgs) != 0:
+        
+            # Create AMI, Create new launch Config, Update ASG
+            self.updateConfig(asgs)
+            
+        else:
+            print("Nothing has been done! 0 ASGs have been configured with proper tags.")
         
 if __name__ == '__main__':
     
-    # AWS CLI Profile and Region
-    profile = 'wind'
-    region = 'us-west-2'
+    kwargs = {
     
-    # Dry Run operation?
-    dryrun = False
-    
-    # Don't reboot instance when taking AMI?
-    # True = Don't reboot instance
-    # False = Reboot instance
-    noReboot = True
+        # AWS CLI Profile and Region
+        'profile': '',
+        'region': '',
+        
+        # Dry Run operation?
+        'dryrun': False,
+        
+        # Don't reboot instance when taking AMI?
+        # True = Don't reboot instance
+        # False = Reboot instance
+        'noReboot': True
+    }
     
     # Instantiate the AsgConfig class with proper parameters
-    asg = AsgConfig(profile, region, dryrun, noReboot)
+    asg = AsgConfig(**kwargs)
     
     # Launch the operation
-    asg.run()
+    asg()
     
     
